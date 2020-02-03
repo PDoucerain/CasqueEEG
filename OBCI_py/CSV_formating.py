@@ -32,6 +32,22 @@ PI = 3.1416
 
 # ---Frequences utilisees par SSVEP--- #
 f_SSVEP = [12.00, 10.00, 8.57, 7.50, 6.66]
+sequence_plan = [4, 2, 3, 5, 1, 2, 5, 4, 2, 3, 1, 5, 4, 3, 2, 4, 1, 2, 5, 3, 4, 1, 3, 1, 3]
+sequence_calc = []
+
+# ---Find trials start and ends--- #
+#print(np.shape(events))
+start_idx = np.where(events == 32779)[0]
+trial_start = []
+for idx in start_idx:
+    trial_start.append(events[idx, 2])
+#trial_start = np.where(32779, events[3])
+print("start", trial_start)
+
+for i in range(len(sequence_plan)):
+    sequence_plan[i] = f_SSVEP[sequence_plan[i]-1]
+print(sequence_plan)
+
 bp_freq = [f_SSVEP[-1], f_SSVEP[0]]
 bp_wn = [i * 2.0/freq_ech for i in bp_freq]         # for butterworth filter
 
@@ -79,15 +95,18 @@ for c in range(nb_channels):
 
 # ---Choix du channel et de l'epoch--- #
 chan = 6
-epo = 0
+epo = 6
 
 # ---Filtrage passe-bande des donnees--- #
 [b, a] = sc.signal.butter(5, bp_wn, btype='bandpass')
 fft_channel_1 = signal.filtfilt(b, a, channel[chan][epo])
 #fft_channel_1 = channel[5][3]
 fft_channel_1 = np.fft.fft(fft_channel_1)
+#fft_channel_test = list(abs(fft_channel_1))
 
-#print(channel[0][8])
+#print(max(fft_channel_test))
+#fft_channel_test.index()
+
 fig, ax = pyplot.subplots()
 xf = np.linspace(0.0, freq_ech/2, int(samples/2))
 ax.plot(xf, 2/samples * abs(fft_channel_1[:samples//2]))
@@ -98,10 +117,9 @@ ax.set_title('Channel eeg {}, epoch : {}'.format(labels[chan], epo+1))
 pyplot.show()
 
 # ---Detection de la frequence predominante--- #
-fft_channels = 2/samples * abs(fft_channel_1[:samples//2])
-#max_freq = [i for i, x in enumerate(fft_channels[5:]) if x == max(fft_channels[5:])]
-max_freq = np.argsort(fft_channels)
-max_freq = max_freq[::-1]
+fft_channels_analysis = abs(fft_channel_1[:samples//2])
+sequence_calc.append(np.argmax(fft_channels_analysis)/samples * freq_ech)
+print("Fréquence prédominente : {} Hz".format(np.argmax(fft_channels_analysis)/samples * freq_ech))
 
 # Ajout des colonnes manquantes au CSV
 df['Time:128Hz'] = timestamp
