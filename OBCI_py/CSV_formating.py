@@ -38,15 +38,21 @@ sequence_calc = []
 # ---Find trials start and ends--- #
 #print(np.shape(events))
 start_idx = np.where(events == 32779)[0]
+end_idx = np.where(events == 32780)[0]
+
 trial_start = []
+trial_end = []
 for idx in start_idx:
     trial_start.append(events[idx, 2])
+
+for idx in end_idx:
+    trial_end.append(events[idx, 2])
+
 #trial_start = np.where(32779, events[3])
 print("start", trial_start)
 
 for i in range(len(sequence_plan)):
     sequence_plan[i] = f_SSVEP[sequence_plan[i]-1]
-print(sequence_plan)
 
 bp_freq = [f_SSVEP[-1], f_SSVEP[0]]
 bp_wn = [i * 2.0/freq_ech for i in bp_freq]         # for butterworth filter
@@ -55,7 +61,7 @@ datacsv = list(datacsv)
 datacsv = np.transpose(datacsv)
 
 nb_channels = len(datacsv[0])
-nb_epoch = len(datacsv)//ep_lgt
+nb_epoch = len(trial_start)
 print("nb_channels :", nb_channels)
 print("nb_epoch :", nb_epoch)
 
@@ -91,21 +97,38 @@ print("longueur channel :", np.shape(channel))
 # ---Integration des donnees dans array 3D [channel][epoch][echantillon]--- #
 for c in range(nb_channels):
     for e in range(1, nb_epoch):
-        channel[c][e] = fft_data[((ep_lgt*e)-ep_lgt):(ep_lgt*e), c]
+        channel[c][e] = fft_data[trial_start[e]:trial_end[e], c]
 
-# ---Choix du channel et de l'epoch--- #
-chan = 6
-epo = 6
 
-# ---Filtrage passe-bande des donnees--- #
-[b, a] = sc.signal.butter(5, bp_wn, btype='bandpass')
-fft_channel_1 = signal.filtfilt(b, a, channel[chan][epo])
-#fft_channel_1 = channel[5][3]
-fft_channel_1 = np.fft.fft(fft_channel_1)
-#fft_channel_test = list(abs(fft_channel_1))
+for ep in range(nb_epoch):
+    # ---Choix du channel et de l'epoch--- #
+    chan = 6    #channel 6 et 7 pour lobe occipital
+    epo = ep
 
-#print(max(fft_channel_test))
-#fft_channel_test.index()
+    # ---Filtrage passe-bande des donnees--- #
+    [b, a] = sc.signal.butter(5, bp_wn, btype='bandpass')
+    fft_channel_1 = signal.filtfilt(b, a, channel[chan][epo])
+    #fft_channel_1 = channel[5][3]
+    fft_channel_1 = np.fft.fft(fft_channel_1)
+    #fft_channel_test = list(abs(fft_channel_1))
+
+    #print(max(fft_channel_test))
+    #fft_channel_test.index()
+
+    # ---Detection de la frequence predominante--- #
+    fft_channels_analysis = abs(fft_channel_1[:samples // 2])
+    sequence_calc.append(np.argmax(fft_channels_analysis) / samples * freq_ech)
+    #print("Fréquence prédominente : {} Hz".format(np.argmax(fft_channels_analysis) / samples * freq_ech))
+
+print("Sequence calculée :", sequence_calc)
+print("Sequence planifiée :", sequence_plan)
+sucess = abs(np.subtract(sequence_plan[:nb_epoch], sequence_calc[:]))
+sucess_rate = 0
+for s in sucess:
+    if s < 0.6:
+        sucess_rate += 1.0
+sucess_rate /= nb_epoch
+print("Taux de réussite : {0:.2f} %".format(sucess_rate*100))
 
 fig, ax = pyplot.subplots()
 xf = np.linspace(0.0, freq_ech/2, int(samples/2))
@@ -116,10 +139,7 @@ ax.set_title('Channel eeg {}, epoch : {}'.format(labels[chan], epo+1))
 #ax.plot(np.linspace(0, len(fft_data), freq_ech*5), fft_data)
 pyplot.show()
 
-# ---Detection de la frequence predominante--- #
-fft_channels_analysis = abs(fft_channel_1[:samples//2])
-sequence_calc.append(np.argmax(fft_channels_analysis)/samples * freq_ech)
-print("Fréquence prédominente : {} Hz".format(np.argmax(fft_channels_analysis)/samples * freq_ech))
+
 
 # Ajout des colonnes manquantes au CSV
 df['Time:128Hz'] = timestamp
