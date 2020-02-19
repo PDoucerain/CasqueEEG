@@ -315,7 +315,7 @@ class Channel:
 
     def addNewData(self, data, events, seq):
         self.epochSeparation(events, seq)
-        if self.channel_name == 'O2':
+        if self.channel_name == 'O23':
             filtered_data = self.adaptativeFilter(64, data)
         else:
             filtered_data = data

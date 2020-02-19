@@ -2,6 +2,7 @@ import os
 from scipy.io import loadmat
 import Classification as cl
 import numpy as np
+import GUI
 
 class experiment:
     def __init__(self):
@@ -52,3 +53,8 @@ for i in range(rank):
     n /= len(registered_patients)
     print("Sucess rate rank {} : {}%".format(i+1, n))
 
+window = GUI.MainApplication(registered_patients)
+LW = window.frames[GUI.MainWindow].lengthw
+mwindow_size = str(1260+LW) + 'x' + str(180 + (GUI.MainWindow.nb_pieces // 8) * 25)
+window.geometry(mwindow_size)
+window.mainloop()
