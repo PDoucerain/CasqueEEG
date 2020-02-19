@@ -1,6 +1,7 @@
 import numpy as np
 import scipy as sc
 from scipy import signal
+import matplotlib.pyplot as plt
 
 
 class Patient:
@@ -8,6 +9,9 @@ class Patient:
         self.eeg_data = np.transpose(data['eeg'])
         self.events = data['events']
         self.patient = filename
+        self.bp_wn=[]
+
+        
 
         self.labels = ['AF3', 'F7', 'F3', 'FC5', 'T7', 'P7', 'O1', 'O2', 'P8', 'T8', 'FC6', 'F4', 'F8', 'AF4', 'Status']
         self.sequence_plan = [[4, 2, 3, 5, 1, 2, 5, 4, 2, 3, 1, 5], [4, 3, 2, 4, 1, 2, 5, 3, 4, 1, 3, 1, 3]]
@@ -60,7 +64,7 @@ class Patient:
             sequence_plan[seq][i] = f_SSVEP[sequence_plan[seq][i] - 1]
 
         bp_freq = [f_SSVEP[-1] - 0.2, f_SSVEP[0] + 1]
-        bp_wn = [i * 2.0 / self.freq_ech for i in bp_freq]  # for butterworth filter
+        self.bp_wn = [i * 2.0 / self.freq_ech for i in bp_freq]  # for butterworth filter
 
         data = list(data)
         data = np.transpose(data)
@@ -164,29 +168,29 @@ class Patient:
         freq_calc = f_SSVEP[freq_idx]
 
     def displayData(self, type):
-        if sucess_rate < 0.05:
-            print(filename)
-            print("Taux de réussite : {0:.2f} %".format(sucess_rate * 100))
-
-        if sucess_rate < 0.05:
-            print("nb_channels :", nb_channels)
-            print("nb_epoch :", nb_epoch)
-
-            print("Sequence calculée :", sequence_calc)
-            print("Sequence planifiée :", sequence_plan[seq])
-
-            print("Taux de réussite : {0:.2f} %".format(sucess_rate * 100))
-            chan = 6  # channel 6 et 7 pour lobe occipital
-            epo = 3
-            # ---fft plot--- #
-            fig, ax = plt.subplots()
-            xf = np.linspace(0.0, freq_ech / 2, int(samples / 2))
-            ax.plot(xf, 2 / samples * abs(fft_channel_1[:samples // 2]))
-            ax.set_ylabel('uvolts')
-            ax.set_xlabel('Hz')
-            ax.set_title('Channel eeg {}, epoch : {}'.format(labels[chan], epo + 1))
-            # ax.plot(np.linspace(0, len(fft_data), samples/2), fft_channels_analysis)
-            plt.show()
+        # if sucess_rate < 0.05:
+        #     print(filename)
+        #     print("Taux de réussite : {0:.2f} %".format(sucess_rate * 100))
+        #
+        # if sucess_rate < 0.05:
+        #     print("nb_channels :", nb_channels)
+        #     print("nb_epoch :", nb_epoch)
+        #
+        #     print("Sequence calculée :", sequence_calc)
+        #     print("Sequence planifiée :", sequence_plan[seq])
+        #
+        #     print("Taux de réussite : {0:.2f} %".format(sucess_rate * 100))
+        #     chan = 6  # channel 6 et 7 pour lobe occipital
+        #     epo = 3
+        #     # ---fft plot--- #
+        #     fig, ax = plt.subplots()
+        #     xf = np.linspace(0.0, freq_ech / 2, int(samples / 2))
+        #     ax.plot(xf, 2 / samples * abs(fft_channel_1[:samples // 2]))
+        #     ax.set_ylabel('uvolts')
+        #     ax.set_xlabel('Hz')
+        #     ax.set_title('Channel eeg {}, epoch : {}'.format(labels[chan], epo + 1))
+        #     # ax.plot(np.linspace(0, len(fft_data), samples/2), fft_channels_analysis)
+        #     plt.show()
 
         # fig, ax = plt.subplots()
         # xf = np.linspace(0.0, freq_ech/2, int(samples/2))
@@ -196,16 +200,16 @@ class Patient:
         # ax.set_title('Channel eeg {}, epoch : {}'.format(labels[chan], epo+1))
         # ax.plot(np.linspace(0, len(fft_data), freq_ech*5), fft_data)
         # plt.show()
-
+        data = type
         # ---Spectrum Analysis--- #
-        # [b, a] = sc.signal.butter(5, bp_wn, btype='bandpass')
-        # fft_channel_1 = signal.filtfilt(b, a, fft_data[:, 6])
-        # f, t, Zxx = sc.signal.spectrogram(fft_channel_1, freq_ech, window=('tukey', 0.25), nperseg=1024)
-        # plt.pcolormesh(t, f, Zxx)
-        # plt.title('STFT Magnitude')
-        # plt.ylabel('Frequency [Hz]')
-        # plt.xlabel('Time [sec]')
-        # plt.show()
+        [b, a] = sc.signal.butter(5, self.bp_wn, btype='bandpass')
+        fft_channel_1 = signal.filtfilt(b, a, data)
+        f, t, Zxx = sc.signal.spectrogram(fft_channel_1, freq_ech, window=('tukey', 0.25), nperseg=1024)
+        plt.pcolormesh(t, f, Zxx)
+        plt.title('STFT Magnitude')
+        plt.ylabel('Frequency [Hz]')
+        plt.xlabel('Time [sec]')
+        plt.show()
 
     def successRate(self, rank):
         seq_calc = self.channel[6].getSequence(rank)
@@ -311,8 +315,12 @@ class Channel:
 
     def addNewData(self, data, events, seq):
         self.epochSeparation(events, seq)
+        if self.channel_name == 'O2':
+            filtered_data = self.adaptativeFilter(64, data)
+        else:
+            filtered_data = data
         for i in range(len(self.epoch_start[seq])):
-            self.epoch[seq].append(Epoch(data[self.epoch_start[seq][i]:self.epoch_end[seq][i]], self.sequence_plan[seq][i], self.rank))
+            self.epoch[seq].append(Epoch(filtered_data[self.epoch_start[seq][i]:self.epoch_end[seq][i]], self.sequence_plan[seq][i], self.rank))
 
     def epochSeparation(self, data, seq):
         start_idx = np.where(data == 32779)[0]
@@ -336,6 +344,30 @@ class Channel:
 
         return sequence_calc
 
+    def adaptativeFilter(self, filter_order, raw_data):
+        M = filter_order  # longueur de la fenetre glissante (longeur du X) fs/M pour avoir la plus basse frequence filtrable
+        u = raw_data
+        step = 0.07
+        e = np.zeros(len(u) - M)
+        w = np.zeros(M)
+        eps = 0.001
+        x_total = []
+
+        for n in range(len(u) - M - 1):
+            d = u[n + 1:n + M + 1]
+            x = np.flipud(u[n:n + M])
+            y = np.dot(x, w)
+
+            x_mag = 1 / (np.dot(x, x) + eps)
+            e[n] = d[-1] - y
+            w += step * x_mag * x * e[n]
+
+            x_total = np.append(x_total, e[n])
+
+        x_total = np.append(raw_data[:M], x_total)
+        x_total = np.append(x_total, raw_data[-1])
+        return np.array(x_total)
+
 class Epoch:
     def __init__(self, data, ref_value, rank):
         self.top_X_frequency = []
@@ -346,6 +378,7 @@ class Epoch:
         self.bp_wn = [i * 2.0 / self.freq_ech for i in self.bp_freq]
         self.success = None
         self.ref_value = ref_value
+        self.raw_data = data
         self.fft_data = []
 
         self.dataProcessing(data, rank)
@@ -354,7 +387,6 @@ class Epoch:
         filtered_data = self.dataFilter(data)
         self.fft_data = self.fft(filtered_data)
         self.statsReport(self.fft_data, rank)
-
 
     def dataFilter(self, data):
         # ---Filtrage passe-bande des donnees entre 6.66 et 12 Hz--- #
@@ -400,3 +432,15 @@ class Epoch:
             else:
                 self.success = False
         return self.success
+
+    def displayData(self, data):
+        # ---Spectrum Analysis--- #
+        [b, a] = sc.signal.butter(5, self.bp_wn, btype='bandpass')
+        fft_channel_1 = signal.filtfilt(b, a, data)
+        f, t, Zxx = sc.signal.spectrogram(fft_channel_1, self.freq_ech, window=('tukey', 0.25), nperseg=1024)
+        plt.pcolormesh(t, f, Zxx)
+        plt.title('STFT Magnitude')
+        plt.ylabel('Frequency [Hz]')
+        plt.xlabel('Time [sec]')
+        plt.show()
+

@@ -3,6 +3,11 @@ from scipy.io import loadmat
 import Classification as cl
 import numpy as np
 
+class experiment:
+    def __init__(self):
+        pass
+
+
 # ---Importation des donnees du .mat--- #
 data_filename = 'U001ai.mat'
 data_folder = 'SSVEP_Training/Dataset/'
@@ -36,7 +41,7 @@ for filename in os.listdir(data_folder):
             for i in range(rank):
                 suc_rate = patients[registered_patients.index(filename[:5])].successRate(i+1)
                 average_success[i] = np.add(average_success[i], suc_rate)
-            #print("Patient {}, success rate : {} %".format(filename, suc_rate))
+                #print("Patient {}, success rate : {} %".format(filename, suc_rate))
 
         else:
             registered_patients.append(filename[:5])
