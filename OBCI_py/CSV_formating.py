@@ -8,6 +8,36 @@ class experiment:
     def __init__(self):
         pass
 
+class Report:
+    def __init__(self, request):
+        self.names = request[0]
+        self.settings = request[1]
+        self.settings_val = request[2]
+
+    def successRate(self):
+        #for patient in self.names:
+        #    patients[registered_patients.index(patient)].displayData(window.request[1])
+        pass
+
+    def generateReport(self):
+        # Afficher fft sur une epoch
+        if 'selected' in self.settings[0]:
+            patients[registered_patients.index(self.names[0])].displayFFT(self.settings_val[0], self.settings_val[1])
+
+        # Afficher spectrum
+        if 'selected' in self.settings[1]:
+            print('spectrum')
+
+        # Afficher Taux de succes
+        if 'selected' in self.settings[2]:
+            print('success rate')
+
+        # Afficher les stats frequences
+        if 'selected' in self.settings[3]:
+            print('frequency report')
+
+        else:
+            pass
 
 # ---Importation des donnees du .mat--- #
 data_filename = 'U001ai.mat'
@@ -53,8 +83,18 @@ for i in range(rank):
     n /= len(registered_patients)
     print("Sucess rate rank {} : {}%".format(i+1, n))
 
-window = GUI.MainApplication(registered_patients)
-LW = window.frames[GUI.MainWindow].lengthw
+frame = GUI.MainApplication(registered_patients)
+window = frame.frames[GUI.MainWindow]
+LW = frame.frames[GUI.MainWindow].lengthw
 mwindow_size = str(1260+LW) + 'x' + str(180 + (GUI.MainWindow.nb_pieces // 8) * 25)
-window.geometry(mwindow_size)
-window.mainloop()
+frame.geometry(mwindow_size)
+frame.mainloop()
+while True:
+    if window.ready_to_send:
+        report_request = Report(window.request)
+        report_request.generateReport()
+        window.ready_to_send = False
+        frame.mainloop()
+    else:
+        break
+

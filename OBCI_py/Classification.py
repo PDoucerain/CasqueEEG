@@ -31,7 +31,8 @@ class Patient:
         self.channel = self.nb_channels * [None]
 
         for name in range(self.nb_channels):
-            self.channel[name] = Channel(self.labels[name], seq, self.eeg_data[:, name], self.events, self.sequence_plan, rank)
+            self.channel[name] = Channel(self.labels[name], seq, self.eeg_data[:, name], self.events,
+                                         self.sequence_plan, rank, self.patient)
 
         #self.dataAnalysis(self.eeg_data, self.events)
 
@@ -211,6 +212,14 @@ class Patient:
         plt.xlabel('Time [sec]')
         plt.show()
 
+    def displayFFT(self, c, e):
+        if e <= 12:
+            s = 0
+        else:
+            s = 1
+            e -= 13
+        self.channel[c].epoch[s][e-1].displayFFT()
+
     def successRate(self, rank):
         seq_calc = self.channel[6].getSequence(rank)
         suc = 0
@@ -304,13 +313,14 @@ class Patient:
         pass
 
 class Channel:
-    def __init__(self, name, seq, data, events, sequence_plan, rank):
+    def __init__(self, name, seq, data, events, sequence_plan, rank, patient):
         self.channel_name = name
         self.epoch = [[], []]                   #afin d'avoir 12 epoch ds seq 1 et 13 epoch ds seq 2
         self.epoch_start = [[], []]
         self.epoch_end = [[], []]
         self.rank = rank
         self.sequence_plan = sequence_plan
+        self.patient = patient
         self.addNewData(data, events, seq)
 
     def addNewData(self, data, events, seq):
@@ -320,7 +330,7 @@ class Channel:
         else:
             filtered_data = data
         for i in range(len(self.epoch_start[seq])):
-            self.epoch[seq].append(Epoch(filtered_data[self.epoch_start[seq][i]:self.epoch_end[seq][i]], self.sequence_plan[seq][i], self.rank))
+            self.epoch[seq].append(Epoch(filtered_data[self.epoch_start[seq][i]:self.epoch_end[seq][i]], self.sequence_plan[seq][i], self.rank, self.channel_name, i+seq*12, self.patient))
 
     def epochSeparation(self, data, seq):
         start_idx = np.where(data == 32779)[0]
@@ -369,17 +379,24 @@ class Channel:
         return np.array(x_total)
 
 class Epoch:
-    def __init__(self, data, ref_value, rank):
+    def __init__(self, data, ref_value, rank, chan, ep, patient):
         self.top_X_frequency = []
         self.freq_ech = 128
         self.sample_nb = 640
         self.frequencies = [12.00, 10.00, 8.57, 7.50, 6.66]
+        self.sequence_plan = [4, 2, 3, 5, 1, 2, 5, 4, 2, 3, 1, 5, 4, 3, 2, 4, 1, 2, 5, 3, 4, 1, 3, 1, 3]
         self.bp_freq = [self.frequencies[-1]-0.2, self.frequencies[0]+1]
         self.bp_wn = [i * 2.0 / self.freq_ech for i in self.bp_freq]
         self.success = None
         self.ref_value = ref_value
         self.raw_data = data
         self.fft_data = []
+        self.channel = chan
+        self.epoch = ep
+        self.maximum_freq_idx = []
+        self.maximum_freq_val = []
+        self.amp_max_freq = []
+        self.patient_name = patient
 
         self.dataProcessing(data, rank)
 
@@ -400,21 +417,26 @@ class Epoch:
         return fft_data
 
     def statsReport(self, data, rank):
-        max_frequency = self.findMaximumValues(data, rank)
-        max_frequency = np.multiply(max_frequency, 128/640)
+        self.maximum_freq_idx = self.findMaximumValues(data, rank)
+        self.maximum_freq_val = np.multiply(self.maximum_freq_idx, 128/640)
+        self.maximum_freq_amp = self.findAmpMaxFreq(self.maximum_freq_idx)
 
-        self.top_X_frequency = self.closestChoice(self.frequencies, max_frequency)
+        self.top_X_frequency = self.closestChoice(self.frequencies, self.maximum_freq_val)
 
         # best_value_diff = abs(np.subtract(max_frequency, self.ref_value))
         # best_value_idx = np.argmin(best_value_diff)
         # best_value = max_frequency[best_value_idx]
 
+    def findAmpMaxFreq(self, idx):
+        for i in idx:
+            self.amp_max_freq.append(self.fft_data[i])
+
     def findMaximumValues(self, values, rank):
-        arr = np.argsort(values)
+        max_idx = np.argsort(values)
 
-        maximum_values = arr[-rank:]
+        max_idx_ranked = max_idx[-rank:]
 
-        return maximum_values
+        return max_idx_ranked
 
     def closestChoice(self, choices, values):
         top_freqs = []
@@ -442,5 +464,22 @@ class Epoch:
         plt.title('STFT Magnitude')
         plt.ylabel('Frequency [Hz]')
         plt.xlabel('Time [sec]')
+        plt.show()
+
+    def displayFFT(self):
+        fig, ax = plt.subplots()
+        xf = np.linspace(0.0, self.freq_ech/8, int(self.sample_nb/8))
+        ax.plot(xf, np.multiply(2/self.sample_nb, self.fft_data[0:self.sample_nb//8]))
+        ax.set_ylabel('uvolts')
+        ax.set_xlabel('Hz')
+        ax.set_title('Code du patient : {}'.format(self.patient_name) + '\n' +
+                     'Channel eeg {}, epoch : {}'.format(self.channel, self.epoch+1) + '\n'
+                     + 'Fréquence attendue : {} Hz  Fréquence calculée : {} Hz'.format(
+            self.frequencies[self.sequence_plan[self.epoch]-1], self.top_X_frequency[-1]))
+
+        x = np.divide(self.maximum_freq_idx, 5)
+        y = np.multiply(2/self.sample_nb, self.amp_max_freq)
+        ax.scatter(x, y, c='red', marker='o', alpha=0.8)
+        print(self.top_X_frequency)
         plt.show()
 
