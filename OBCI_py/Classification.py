@@ -11,10 +11,9 @@ class Patient:
         self.patient = filename
         self.bp_wn=[]
 
-        
-
         self.labels = ['AF3', 'F7', 'F3', 'FC5', 'T7', 'P7', 'O1', 'O2', 'P8', 'T8', 'FC6', 'F4', 'F8', 'AF4', 'Status']
         self.sequence_plan = [[4, 2, 3, 5, 1, 2, 5, 4, 2, 3, 1, 5], [4, 3, 2, 4, 1, 2, 5, 3, 4, 1, 3, 1, 3]]
+        self.full_sequence_plan = self.sequence_plan[0] + self.sequence_plan[1]
 
         # ---Data infos--- #
         self.nb_channels = len(self.eeg_data[0, :])-1
@@ -35,6 +34,8 @@ class Patient:
                                          self.sequence_plan, rank, self.patient)
 
         #self.dataAnalysis(self.eeg_data, self.events)
+
+        self.overall_success = [0, 0, 0, 0, 0]
 
     def dataAnalysis(self, data, events, seq, verbose, filename):
 
@@ -120,6 +121,23 @@ class Patient:
         sucess_rate /= nb_epoch
 
         return sucess_rate
+
+    def getChannelsName(self):
+        return self.labels
+
+    def setOverallSuccess(self):
+        sequence = self.getSuccess()
+        i = 0
+        for s in sequence:
+            if s == self.full_sequence_plan[i]:
+                self.overall_success[s-1] += 1
+            i += 1
+
+        self.overall_success[0] /= 5
+        self.overall_success[1] /= 5
+        self.overall_success[2] /= 6
+        self.overall_success[3] /= 5
+        self.overall_success[4] /= 4
 
     def referenceData(self, data):
         ref = data.mean()
@@ -232,6 +250,10 @@ class Patient:
 
 
         return suc*100
+
+    def getSuccess(self):
+        seq = self.channel[6].getSequence2()
+        return seq
 
     def successRateImprovements(self):
         # ---ESSAI : Plusieurs bp filter pour les 5 freq--- #
@@ -354,6 +376,14 @@ class Channel:
 
         return sequence_calc
 
+    def getSequence2(self):
+        sequence_calc = []
+        for s in self.epoch:
+            for ep in s:
+                sequence_calc.append(ep.getTrial())
+
+        return sequence_calc
+
     def adaptativeFilter(self, filter_order, raw_data):
         M = filter_order  # longueur de la fenetre glissante (longeur du X) fs/M pour avoir la plus basse frequence filtrable
         u = raw_data
@@ -381,12 +411,19 @@ class Channel:
 class Epoch:
     def __init__(self, data, ref_value, rank, chan, ep, patient):
         self.top_X_frequency = []
+
         self.freq_ech = 128
         self.sample_nb = 640
+        self.f_resolution = self.freq_ech / self.sample_nb
         self.frequencies = [12.00, 10.00, 8.57, 7.50, 6.66]
+        self.possible_idx = np.floor_divide(self.frequencies, self.f_resolution)
+        self.possible_idx = [59, 49, 42, 37, 32]
         self.sequence_plan = [4, 2, 3, 5, 1, 2, 5, 4, 2, 3, 1, 5, 4, 3, 2, 4, 1, 2, 5, 3, 4, 1, 3, 1, 3]
+
         self.bp_freq = [self.frequencies[-1]-0.2, self.frequencies[0]+1]
         self.bp_wn = [i * 2.0 / self.freq_ech for i in self.bp_freq]
+
+        self.trial_calc = 0
         self.success = None
         self.ref_value = ref_value
         self.raw_data = data
@@ -417,12 +454,17 @@ class Epoch:
         return fft_data
 
     def statsReport(self, data, rank):
-        self.maximum_freq_idx = self.findMaximumValues(data, rank)
-        self.maximum_freq_val = np.multiply(self.maximum_freq_idx, 128/640)
-        self.maximum_freq_amp = self.findAmpMaxFreq(self.maximum_freq_idx)
-
-        self.top_X_frequency = self.closestChoice(self.frequencies, self.maximum_freq_val)
-
+        # self.maximum_freq_idx = self.findMaximumValues(data, rank)
+        # self.maximum_freq_val = np.multiply(self.maximum_freq_idx, 128/640)
+        # self.maximum_freq_amp = self.findAmpMaxFreq(self.maximum_freq_idx)
+        #
+        # self.top_X_frequency = self.closestChoice(self.frequencies, self.maximum_freq_val)
+        max_freqs = []
+        for i in self.possible_idx:
+            i = int(i)
+            max_freqs.append(np.max(data[i-1:i+2]))
+        self.trial_calc = np.argsort(max_freqs)[-1]+1
+        self.top_X_frequency = [self.frequencies[self.trial_calc-1]]
         # best_value_diff = abs(np.subtract(max_frequency, self.ref_value))
         # best_value_idx = np.argmin(best_value_diff)
         # best_value = max_frequency[best_value_idx]
@@ -447,13 +489,21 @@ class Epoch:
         return top_freqs #descending order (worst to best)
 
     def getSuccess(self, pos):
-        for value in self.top_X_frequency[-pos:]:
-            if value == self.frequencies[self.ref_value-1]:
-                self.success = True
-                break
-            else:
-                self.success = False
+        #for value in self.top_X_frequency[-pos:]:
+            #if value == self.frequencies[self.ref_value-1]:
+            #     self.success = True
+            #     break
+            # else:
+            #     self.success = False
+
+        if self.trial_calc == self.ref_value:
+            self.success = True
+        else:
+            self.success = False
         return self.success
+
+    def getTrial(self):
+        return self.trial_calc
 
     def displayData(self, data):
         # ---Spectrum Analysis--- #
@@ -480,6 +530,8 @@ class Epoch:
         x = np.divide(self.maximum_freq_idx, 5)
         y = np.multiply(2/self.sample_nb, self.amp_max_freq)
         ax.scatter(x, y, c='red', marker='o', alpha=0.8)
+        for f in self.frequencies:
+            plt.axvline(f, lw=1, color='C1', ls='--')
         print(self.top_X_frequency)
         plt.show()
 

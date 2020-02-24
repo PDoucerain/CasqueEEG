@@ -5,13 +5,10 @@ from tkinter import messagebox
 from pathlib import Path
 import tkinter.filedialog
 
-months = ['Janvier', 'Fevrier', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Aout', 'Septembre', 'Octobre',
-         'Novembre', 'Decembre']
-
 
 class MainApplication(Tk):
 
-    def __init__(self, names, *args, **kwargs):
+    def __init__(self, names, c_list, suc_freq,*args, **kwargs):
 
         Tk.__init__(self, *args, **kwargs)
         Tk.wm_title(self, 'EEG_Analyser')
@@ -22,8 +19,9 @@ class MainApplication(Tk):
         container.grid_columnconfigure(0, weight=1)
 
         self.frames = {}
-
+        self.c_list = c_list
         self.patient_names = names
+        self.success_by_freq = suc_freq
         frame = MainWindow(container, self)
 
         self.frames[MainWindow] = frame
@@ -54,6 +52,8 @@ class MainWindow(Frame):
             if name[-1] not in experience_nb_list:
                 experience_nb_list.append(name[-1])
 
+        self.channel_list = controller.c_list
+        self.success_by_freq = controller.success_by_freq
         self.sequence_plan = [4, 2, 3, 5, 1, 2, 5, 4, 2, 3, 1, 5, 4, 3, 2, 4, 1, 2, 5, 3, 4, 1, 3, 1, 3]
         self.freq_possible = [12.00, 10.00, 8.57, 7.50, 6.66]
         self.frequencies_plan = []
@@ -86,13 +86,13 @@ class MainWindow(Frame):
         button_clear.place(y=patient_y+120, x=patient_x+350)
 
         # ---Settings section--- #
-        y_setting = 30
-        y_spacing = 20
+        y_setting = 20
+        y_spacing = 30
         x_setting = 500
 
         # Buttons
         button_request = Button(self, text='Send', command=self.getRequest)
-        button_request.place(y=y_setting+120, x=x_setting+100)
+        button_request.place(y=y_setting+113, x=x_setting+100)
 
         # Checkboxes
         self.checkboxes_list = []
@@ -102,27 +102,51 @@ class MainWindow(Frame):
             self.checkboxes_list[i].place(y=y_setting+y_spacing*i, x=x_setting)
 
         # Label
+        self.chan_text = StringVar()
+        self.chan_text.set('Channel : AF3')
+        self.chan_label = Label(self, textvariable=self.chan_text)
+        self.chan_label.place(y=y_setting-2, x=x_setting + 350)
+
         self.seq_text = StringVar()
         self.seq_text.set('Seq nb : 4 - 7.50 Hz')
         self.seq_label = Label(self, textvariable=self.seq_text)
-        self.seq_label.place(y=y_setting, x=x_setting+350)
+        self.seq_label.place(y=y_setting+y_spacing, x=x_setting+350)
 
         self.sucr_text = StringVar()
         self.sucr_text.set('Succès global : ')
         self.sucr_label = Label(self, textvariable=self.sucr_text)
-        self.sucr_label.place(y=y_setting, x=x_setting+250)
+        self.sucr_label.place(y=y_setting+2*y_spacing, x=x_setting+350)
 
         # Slider
-        self.channel_slider = Scale(self, from_=1, to=14, orient=HORIZONTAL, length=100)
+        self.channel_slider = Scale(self, from_=1, to=14, orient=HORIZONTAL, length=100, command=self.dispChSliderVal)
         self.channel_slider.place(y=y_setting - 20, x=x_setting + 120)
 
-        self.sequence_slider = Scale(self, from_=1, to=25, orient=HORIZONTAL, length=200, command=self.dispSliderVal)
+        self.sequence_slider = Scale(self, from_=1, to=25, orient=HORIZONTAL, length=200, command=self.dispEpSliderVal)
         self.sequence_slider.place(y=y_setting+10, x=x_setting+120)
 
+        # ---Stats--- #
+        self.s_b_f_t = StringVar()
+        self.s_b_f_t.set('Taux de succès par fréquence :\n\n'
+                         '6.66 Hz : {} %\n\n7.50 Hz : {} %\n\n8.57 Hz : {} %\n\n10.00 Hz : {} %\n\n'
+                         '12.00 Hz : {} %'.format(self.success_by_freq[0]*100,
+                                                self.success_by_freq[1]*100,
+                                                self.success_by_freq[2]*100,
+                                                self.success_by_freq[3]*100,
+                                                self.success_by_freq[4]*100))
 
-    def dispSliderVal(self, idx):
+
+
+        self.suc_by_freq_label = Label(self, textvariable=self.s_b_f_t)
+        self.suc_by_freq_label.place(y=y_setting + 150, x=x_setting + 350)
+
+
+    def dispEpSliderVal(self, idx):
         idx = int(idx)
         self.seq_text.set('Seq nb : ' + str(self.sequence_plan[idx-1]) + ' - ' + str(self.frequencies_plan[idx-1]) + ' Hz')
+
+    def dispChSliderVal(self, idx):
+        idx = int(idx)
+        self.chan_text.set('Channel : ' + str(self.channel_list[idx-1]))
 
     def clearTextbox(self):
         self.patient_list.delete(1.0, END)
